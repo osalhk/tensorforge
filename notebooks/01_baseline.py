@@ -11,6 +11,7 @@ Saves the fitted models to model/baseline.joblib.
 """
 
 import json
+import sys
 from pathlib import Path
 
 import joblib
@@ -22,6 +23,9 @@ from sklearn.model_selection import StratifiedKFold, cross_val_predict
 from sklearn.pipeline import FeatureUnion, make_pipeline
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from app.features import ticket_text  # noqa: E402  (same input builder as the API)
+
 NONE = "none"
 SEED = 42
 
@@ -32,8 +36,8 @@ def load(name):
 
 
 def to_text(t):
-    # Channel and language go in as tokens so the model can use them as features.
-    return f"__ch_{t['channel']} __lang_{t['language']} {t.get('subject') or ''}\n{t['text']}"
+    # Only channel, subject and text: the API never sends `language`.
+    return ticket_text(t["channel"], t.get("subject"), t["text"])
 
 
 def make_model():
@@ -109,7 +113,7 @@ def main():
         print(f"  {lang:9s} n={m.sum():4d}  acc {accuracy_score(y_cat[m], p_cat[m]):.3f}")
 
     out = ROOT / "model" / "baseline.joblib"
-    joblib.dump({"category": cat_model, "secondary": sec_model, "urgent": urg_model,
+    joblib.dump({"name": "baseline", "category": cat_model, "secondary": sec_model, "urgent": urg_model,
                  "urgent_threshold": float(best_t)}, out)
     print(f"\nSaved model to {out.relative_to(ROOT)}")
 

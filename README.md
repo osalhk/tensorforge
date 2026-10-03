@@ -23,13 +23,43 @@ frontend/    demo website
 Dockerfile
 ```
 
-## Run locally (once the app is built)
+## Run locally
 
 ```bash
+# one-time setup
+uv venv .venv && uv pip install --python .venv/bin/python -r requirements-dev.txt
 cp .env.example .env          # put the real API key in .env — never commit it
+
+# train the baseline (writes model/baseline.joblib)
+.venv/bin/python notebooks/01_baseline.py
+
+# start the API, then open http://localhost:8000/docs
+set -a && . ./.env && set +a && .venv/bin/uvicorn app.main:app --port 8000
+
+# run the contract tests (checks every response against the official schemas in api/)
+.venv/bin/python -m pytest -q
+```
+
+With Docker:
+
+```bash
 docker build -t tensorforge .
 docker run -p 8000:8000 -e API_KEY=<key> tensorforge
 ```
+
+## How the API is built (`app/`)
+
+| File | Job |
+|---|---|
+| `main.py` | Endpoints, API key check, error format. Checks run in the spec order: auth → content type → size → JSON → validation |
+| `validation.py` | Input rules (channel values, empty text, lengths, batch `index` details, duplicate ids) |
+| `model.py` | Loads the model, applies the consistency rules (secondary ≠ primary, spam → not urgent, team table) |
+| `features.py` | Builds the model input from `channel`, `subject`, `text` — shared with training |
+| `jobs.py` | Async batch jobs stored in SQLite; a background worker processes them in chunks. Running jobs become `failed`/`interrupted` after a restart |
+
+`model_version` is the model name plus the first 12 characters of the model file's SHA-256 hash, so it always identifies the exact artifact.
+
+`needs_human_review` is `true` when the confidence in the primary category is below **0.5**.
 
 ## Endpoints
 
