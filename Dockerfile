@@ -23,6 +23,7 @@ ENV JOBS_DB=/srv/state/jobs.db
 
 COPY app/ app/
 COPY model/ model/
+COPY frontend/ frontend/
 
 USER app
 EXPOSE 8000

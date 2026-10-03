@@ -307,3 +307,17 @@ def test_expired_job_is_410(client):
         c.execute("UPDATE jobs SET expires_at='2000-01-01T00:00:00Z' WHERE job_id=?", (row["job_id"],))
     check_error(client.get(f"/batch/jobs/{row['job_id']}", headers=AUTH), 410)
     check_error(client.get(f"/batch/jobs/{row['job_id']}/results", headers=AUTH), 410)
+
+
+# ---------------------------------------------------------------- demo website
+
+def test_demo_page_is_served(client):
+    r = client.get("/", follow_redirects=False)
+    assert r.status_code in (302, 307) and r.headers["location"] == "/demo/"
+    page = client.get("/demo/")
+    assert page.status_code == 200 and "RideEat Ticket Triage" in page.text
+    assert KEY not in page.text
+
+
+def test_demo_unknown_file_is_json_404(client):
+    check_error(client.get("/demo/nope.js"), 404)

@@ -21,7 +21,8 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request, Security
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 from fastapi.security import APIKeyHeader, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -221,6 +222,19 @@ async def read_json(request: Request, limit: int):
 def model_unavailable():
     return error(503, "model_not_ready", "Model is still loading. Retry shortly.",
                  headers={"Retry-After": "5"})
+
+
+# ---------------------------------------------------------------- demo website
+
+FRONTEND = ROOT / "frontend"
+if FRONTEND.is_dir():
+    # Public static page; it calls the protected API with a key the visitor types in.
+    app.mount("/demo", StaticFiles(directory=FRONTEND, html=True), name="demo")
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse("/demo/")
 
 
 # ---------------------------------------------------------------- endpoints
