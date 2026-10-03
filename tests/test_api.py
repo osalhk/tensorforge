@@ -321,3 +321,26 @@ def test_demo_page_is_served(client):
 
 def test_demo_unknown_file_is_json_404(client):
     check_error(client.get("/demo/nope.js"), 404)
+
+
+# ---------------------------------------------------------------- XLM-R model (skipped if not downloaded)
+
+XLMR = ROOT / "model" / "xlmr"
+
+
+@pytest.mark.skipif(not (XLMR / "val_probs.npz").exists(), reason="model/xlmr not downloaded")
+def test_xlmr_matches_colab_probabilities():
+    # Guards the serving path (tokenizer padding, attention mask, batching) against the
+    # probabilities the notebook saved for the same validation tickets.
+    import numpy as np
+    from app.model import TransformerPredictor
+
+    saved = np.load(XLMR / "val_probs.npz")
+    rows = [json.loads(line) for line in open(ROOT / "data" / "validation.jsonl", encoding="utf-8")][:48]
+    assert [r["ticket_id"] for r in rows] == list(saved["ticket_id"][:48])
+    tickets = [{"channel": r["channel"], "subject": r["subject"] or "", "text": r["text"]} for r in rows]
+
+    cat, sec, urg = TransformerPredictor(XLMR).probabilities(tickets)
+    assert np.allclose(cat, saved["category"][:48], atol=1e-3)
+    assert np.allclose(sec, saved["secondary"][:48], atol=1e-3)
+    assert np.allclose(urg, saved["urgent"][:48], atol=1e-3)

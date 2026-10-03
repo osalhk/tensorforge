@@ -5,7 +5,9 @@ auth (401) -> content type (415) -> size (413) -> JSON parse (400) -> validation
 
 Environment:
     API_KEY          required; without it every protected endpoint returns 401
-    MODEL_PATH       default model/baseline.joblib
+    MODEL_PATH       model folder (XLM-R) or .joblib file (baseline);
+                     default model/xlmr if present, else model/baseline.joblib
+    ORT_THREADS      onnxruntime threads for the XLM-R model (default: all cores)
     JOBS_DB          default jobs.db (SQLite file for async jobs)
     JOB_RETENTION_H  default 24 (spec minimum is 6)
 """
@@ -28,7 +30,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.jobs import FINISHED, JobStore, JobWorker
-from app.model import Predictor
+from app.model import load_predictor
 from app.validation import validate_batch, validate_ticket
 
 log = logging.getLogger("tensorforge")
@@ -63,7 +65,7 @@ def validation_error(details):
 
 class State:
     api_key: str = ""
-    predictor: Predictor | None = None
+    predictor = None
     store: JobStore | None = None
     worker: JobWorker | None = None
 
@@ -72,10 +74,13 @@ state = State()
 
 
 def load_model():
-    path = Path(os.environ.get("MODEL_PATH", ROOT / "model" / "baseline.joblib"))
+    default = ROOT / "model" / "xlmr"
+    if not (default / "model.onnx").exists():
+        default = ROOT / "model" / "baseline.joblib"
+    path = Path(os.environ.get("MODEL_PATH", default))
     try:
         t = time.time()
-        state.predictor = Predictor(path)
+        state.predictor = load_predictor(path)
         log.info("model %s loaded in %.1fs", state.predictor.version, time.time() - t)
     except Exception:
         log.exception("failed to load model from %s", path)
