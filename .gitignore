@@ -1,0 +1,24 @@
+# Secrets — never commit the API key
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Large model files (keep model/ folder, share weights another way if too big for GitHub)
+model/*
+!model/.gitkeep
+!model/README.md
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Contains the real team API key — keep local only
+docs/*API Key*
