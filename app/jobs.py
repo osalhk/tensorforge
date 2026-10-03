@@ -221,7 +221,7 @@ class JobWorker(threading.Thread):
         try:
             results = []
             for i in range(0, len(tickets), CHUNK_SIZE):
-                results.extend(predictor.predict(tickets[i:i + CHUNK_SIZE]))
+                results.extend(predictor.predict(tickets[i:i + CHUNK_SIZE], background=True))
                 if not self.store.progress(job_id, len(results)):
                     return  # deleted while running
             self.store.finish(job_id, results)

@@ -7,7 +7,7 @@ Environment:
     API_KEY          required; without it every protected endpoint returns 401
     MODEL_PATH       model folder (XLM-R) or .joblib file (baseline);
                      default model/xlmr if present, else model/baseline.joblib
-    ORT_THREADS      onnxruntime threads for the XLM-R model (default: all cores)
+    ORT_THREADS      onnxruntime threads for the XLM-R model (default: the container's CPU limit)
     JOBS_DB          default jobs.db (SQLite file for async jobs)
     JOB_RETENTION_H  default 24 (spec minimum is 6)
 """
@@ -81,7 +81,8 @@ def load_model():
     try:
         t = time.time()
         state.predictor = load_predictor(path)
-        log.info("model %s loaded in %.1fs", state.predictor.version, time.time() - t)
+        log.info("model %s loaded in %.1fs (threads: %s)", state.predictor.version, time.time() - t,
+                 getattr(state.predictor, "threads", "-"))
     except Exception:
         log.exception("failed to load model from %s", path)
 

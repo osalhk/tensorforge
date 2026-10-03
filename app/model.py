@@ -9,6 +9,8 @@ import hashlib
 import io
 import json
 import os
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
@@ -40,6 +42,26 @@ def file_hash(path: Path) -> str:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def available_cpus() -> int:
+    """CPUs this process may really use. Inside Docker with --cpus, os.cpu_count() reports every
+    host core, but the cgroup quota only allows a few; running more threads than that makes
+    onnxruntime threads fight over the quota and slows everything down several times."""
+    n = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1)
+    try:  # cgroup v2: "<quota> <period>" or "max <period>"
+        quota, period = Path("/sys/fs/cgroup/cpu.max").read_text().split()
+        if quota != "max":
+            n = min(n, max(1, int(int(quota) / int(period))))
+    except (OSError, ValueError):
+        try:  # cgroup v1
+            quota = int(Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us").read_text())
+            period = int(Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us").read_text())
+            if quota > 0:
+                n = min(n, max(1, quota // period))
+        except (OSError, ValueError):
+            pass
+    return n
 
 
 def decide(tickets, cat_proba, cat_classes, sec_proba, sec_classes, urg_proba, urg_threshold, version):
@@ -89,7 +111,7 @@ class BaselinePredictor:
         self.urg_model = bundle["urgent"]
         self.urg_threshold = bundle["urgent_threshold"]
 
-    def predict(self, tickets: list[dict]) -> list[dict]:
+    def predict(self, tickets: list[dict], background: bool = False) -> list[dict]:
         X = [ticket_text(t["channel"], t.get("subject"), t["text"]) for t in tickets]
         urg = self.urg_model.predict_proba(X)[:, list(self.urg_model.classes_).index(True)]
         return decide(tickets, self.cat_model.predict_proba(X), self.cat_model.classes_,
@@ -98,7 +120,9 @@ class BaselinePredictor:
 
 
 class TransformerPredictor:
-    BATCH = 8  # small, length-sorted batches waste little time on padding
+    BATCH = 8             # live requests: small, length-sorted batches waste little time on padding
+    BACKGROUND_BATCH = 2  # async jobs: tiny steps, so a live request never waits long
+
 
     def __init__(self, folder: Path):
         import onnxruntime as ort
@@ -117,29 +141,60 @@ class TransformerPredictor:
         self.tokenizer.enable_padding(pad_id=self.tokenizer.token_to_id("<pad>"), pad_token="<pad>")
 
         opts = ort.SessionOptions()
-        # 0 = let onnxruntime use every available core; set ORT_THREADS to pin it.
-        opts.intra_op_num_threads = int(os.environ.get("ORT_THREADS", "0"))
+        self.threads = int(os.environ.get("ORT_THREADS") or available_cpus())
+        opts.intra_op_num_threads = self.threads
+        opts.inter_op_num_threads = 1
         self.session = ort.InferenceSession(str(folder / "model.onnx"), opts,
                                             providers=["CPUExecutionProvider"])
 
-    def probabilities(self, tickets: list[dict]):
+        # Live requests (/predict, /predict/batch) have priority over async jobs: the CPU is
+        # shared, and /predict must stay under 1 s while a job runs. Runs are serialised; a job
+        # step waits while any live request is pending, so live work waits for at most one step.
+        self._run_lock = threading.Lock()
+        self._live_lock = threading.Lock()
+        self._live = 0
+        self._no_live = threading.Event()
+        self._no_live.set()
+
+    @contextmanager
+    def _live_request(self):
+        with self._live_lock:
+            self._live += 1
+            self._no_live.clear()
+        try:
+            yield
+        finally:
+            with self._live_lock:
+                self._live -= 1
+                if self._live == 0:
+                    self._no_live.set()
+
+    def probabilities(self, tickets: list[dict], background: bool = False):
         X = [transformer_text(t["channel"], t.get("subject"), t["text"]) for t in tickets]
         n = len(X)
         cat = np.zeros((n, len(self.categories)), np.float32)
         sec = np.zeros((n, len(self.secondary)), np.float32)
         urg = np.zeros(n, np.float32)
         order = np.argsort([len(x) for x in X], kind="stable")
-        for i in range(0, n, self.BATCH):
-            idx = order[i:i + self.BATCH]
+        step = self.BACKGROUND_BATCH if background else self.BATCH
+        for i in range(0, n, step):
+            idx = order[i:i + step]
             encs = self.tokenizer.encode_batch([X[j] for j in idx])
             feed = {"input_ids": np.array([e.ids for e in encs], np.int64),
                     "attention_mask": np.array([e.attention_mask for e in encs], np.int64)}
-            c, s, u = self.session.run(None, feed)
+            if background:
+                self._no_live.wait()
+            with self._run_lock:
+                c, s, u = self.session.run(None, feed)
             cat[idx], sec[idx], urg[idx] = c, s, u.reshape(-1)
         return cat, sec, urg
 
-    def predict(self, tickets: list[dict]) -> list[dict]:
-        cat, sec, urg = self.probabilities(tickets)
+    def predict(self, tickets: list[dict], background: bool = False) -> list[dict]:
+        if background:
+            cat, sec, urg = self.probabilities(tickets, background=True)
+        else:
+            with self._live_request():
+                cat, sec, urg = self.probabilities(tickets)
         return decide(tickets, cat, self.categories, sec, self.secondary, urg, self.urg_threshold, self.version)
 
 
