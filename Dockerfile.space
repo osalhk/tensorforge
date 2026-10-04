@@ -1,0 +1,39 @@
+# Hugging Face Space image: same as Dockerfile, but the model is not in the Space repo.
+# It is downloaded at build time from a private HF model repo, so the public Space never
+# exposes the model files. Uploaded as the Space's "Dockerfile" by scripts/deploy_hf_space.py.
+#
+# Space settings it needs:  variable MODEL_REPO (e.g. user/tensorforge-model)
+#                           secret   HF_TOKEN   (read-only token with access to MODEL_REPO)
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /srv
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt huggingface_hub
+
+# Space variables arrive as build args; the token is a build secret, never stored in a layer.
+ARG MODEL_REPO
+RUN --mount=type=secret,id=HF_TOKEN,mode=0444,required=true \
+    python -c "import os; from huggingface_hub import snapshot_download; \
+snapshot_download(os.environ['MODEL_REPO'], local_dir='model', token=open('/run/secrets/HF_TOKEN').read().strip())" \
+    && rm -rf model/.cache && test -f model/xlmr/model.onnx
+
+RUN useradd --create-home --uid 1000 app && mkdir -p /srv/state && chown app /srv/state
+ENV JOBS_DB=/srv/state/jobs.db
+
+COPY app/ app/
+COPY frontend/ frontend/
+
+USER app
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", \
+     "--proxy-headers", "--forwarded-allow-ips", "*"]
