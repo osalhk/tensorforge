@@ -84,7 +84,13 @@ docker run -p 8000:8000 -e API_KEY=<key> tensorforge
 
 `model_version` is the model name plus the first 12 characters of the model file's SHA-256 hash, so it always identifies the exact artifact.
 
-`needs_human_review` is `true` when the confidence in the primary category is below **0.5**.
+`confidence` is calibrated with temperature scaling (T = 1.75, `app/calibration.json`, fitted by
+`notebooks/06_calibrate.py`): it changes no prediction, but the raw model said 96% on average while being right
+85% of the time; calibrated, it says 87% (calibration error 0.106 → 0.025). The temperature is part of
+`model_version` (`xlmr-5e87460a8fb6-T1.75`).
+
+`needs_human_review` is `true` when the calibrated confidence in the primary category is below **0.5**. That flags
+about 5% of validation tickets, of which only 19% are correct; the auto-routed rest are 89% correct.
 
 ## Endpoints
 

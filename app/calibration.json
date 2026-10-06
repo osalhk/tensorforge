@@ -1,0 +1,6 @@
+{
+  "xlmr-5e87460a8fb6": {
+    "category_temperature": 1.75,
+    "fitted_on": "800 validation tickets, minimum NLL (notebooks/06_calibrate.py)"
+  }
+}

@@ -344,3 +344,18 @@ def test_xlmr_matches_colab_probabilities():
     assert np.allclose(cat, saved["category"][:48], atol=1e-3)
     assert np.allclose(sec, saved["secondary"][:48], atol=1e-3)
     assert np.allclose(urg, saved["urgent"][:48], atol=1e-3)
+
+
+@pytest.mark.skipif(not (XLMR / "val_probs.npz").exists(), reason="model/xlmr not downloaded")
+def test_calibration_changes_confidence_not_predictions():
+    import numpy as np
+    from app.model import TransformerPredictor, apply_temperature
+
+    saved = np.load(XLMR / "val_probs.npz")["category"]
+    calibrated = apply_temperature(saved, 1.75)
+    assert (calibrated.argmax(1) == saved.argmax(1)).all()
+    assert np.allclose(calibrated.sum(1), 1)
+    assert calibrated.max(1).mean() < saved.max(1).mean()
+
+    predictor = TransformerPredictor(XLMR)
+    assert predictor.temperature and predictor.version.endswith(f"-T{predictor.temperature:.2f}")

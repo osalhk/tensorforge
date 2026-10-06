@@ -1,7 +1,7 @@
 {
   "validation_tickets": 800,
   "xlmr": {
-    "model_version": "xlmr-5e87460a8fb6",
+    "model_version": "xlmr-5e87460a8fb6-T1.75",
     "category_accuracy": 0.8525,
     "category_macro_f1": 0.8508,
     "team_accuracy": 0.8525,
@@ -11,13 +11,13 @@
     "urgent_recall": 0.9875,
     "urgent_f1": 0.9693,
     "all_three_correct": 0.8337,
-    "mean_confidence": 0.9588,
-    "expected_calibration_error": 0.1063,
+    "mean_confidence": 0.8664,
+    "expected_calibration_error": 0.0237,
     "needs_human_review": {
       "threshold": 0.5,
-      "share_flagged": 0.0088,
-      "accuracy_auto_routed": 0.8588,
-      "accuracy_flagged": 0.1429
+      "share_flagged": 0.0537,
+      "accuracy_auto_routed": 0.8904,
+      "accuracy_flagged": 0.186
     },
     "consistency_rules_hold": true,
     "category_accuracy_by_language": {

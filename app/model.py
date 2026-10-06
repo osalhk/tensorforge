@@ -35,6 +35,15 @@ NONE = "none"  # label used for "no secondary category" during training
 # Tickets whose primary-category confidence falls below this are flagged for a human.
 REVIEW_THRESHOLD = 0.5
 
+# Temperature per exact model (notebooks/06_calibrate.py): softens over-confident category probabilities.
+CALIBRATION = Path(__file__).with_name("calibration.json")
+
+
+def apply_temperature(proba, t: float):
+    """softmax(logits / t) from probabilities: same argmax, only the confidence changes."""
+    q = np.power(np.clip(np.asarray(proba, np.float64), 1e-12, 1), 1 / t)
+    return q / q.sum(1, keepdims=True)
+
 
 def file_hash(path: Path) -> str:
     h = hashlib.sha256()
@@ -135,6 +144,10 @@ class TransformerPredictor:
         self.secondary = cfg["secondary"]
         self.urg_threshold = cfg["urgent_threshold"]
         self.version = f"{cfg.get('name', folder.name)}-{file_hash(folder / 'model.onnx')[:12]}"
+        calibration = json.loads(CALIBRATION.read_text()) if CALIBRATION.exists() else {}
+        self.temperature = calibration.get(self.version, {}).get("category_temperature")
+        if self.temperature:
+            self.version += f"-T{self.temperature:.2f}"
 
         self.tokenizer = Tokenizer.from_file(str(folder / "tokenizer.json"))
         self.tokenizer.enable_truncation(cfg["max_len"])
@@ -195,6 +208,8 @@ class TransformerPredictor:
         else:
             with self._live_request():
                 cat, sec, urg = self.probabilities(tickets)
+        if self.temperature:
+            cat = apply_temperature(cat, self.temperature)
         return decide(tickets, cat, self.categories, sec, self.secondary, urg, self.urg_threshold, self.version)
 
 

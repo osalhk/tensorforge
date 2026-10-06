@@ -1,0 +1,29 @@
+{
+  "model_version": "xlmr-5e87460a8fb6",
+  "temperature": 1.75,
+  "fold_temperatures": [
+    1.76,
+    1.74,
+    1.77,
+    1.75,
+    1.72
+  ],
+  "before": {
+    "nll": 0.7597,
+    "ece": 0.1063,
+    "mean_confidence": 0.9588,
+    "accuracy": 0.8525,
+    "share_flagged_for_review": 0.0088,
+    "accuracy_of_flagged": 0.1429,
+    "accuracy_of_auto_routed": 0.8588
+  },
+  "after_5fold_held_out": {
+    "nll": 0.5708,
+    "ece": 0.0249,
+    "mean_confidence": 0.8668,
+    "accuracy": 0.8525,
+    "share_flagged_for_review": 0.0563,
+    "accuracy_of_flagged": 0.2,
+    "accuracy_of_auto_routed": 0.8914
+  }
+}
