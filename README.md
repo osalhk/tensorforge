@@ -105,3 +105,9 @@ about 5% of validation tickets, of which only 19% are correct; the auto-routed r
 | DELETE | `/batch/jobs/{job_id}` | API key |
 
 Send the key as `X-API-Key: <key>` or `Authorization: Bearer <key>`.
+
+**Demo website (`/demo/`).** The page never holds the API key. It calls two extra routes, `POST /demo-api/predict`
+and `POST /demo-api/predict/batch` (not part of the contract, hidden from `/docs`), which run the same model
+server-side with limits so they can never get in the way of the official endpoints: background priority (a live
+`/predict` always runs first), no use of the job queue, at most 50 tickets per call and 600 tickets per minute per
+client. They are off when `API_KEY` is unset, and `DEMO_PUBLIC=0` turns them off entirely.
