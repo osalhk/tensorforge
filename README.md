@@ -42,7 +42,7 @@ uv venv .venv && uv pip install --python .venv/bin/python -r requirements-dev.tx
 cp .env.example .env          # put the real API key in .env — never commit it
 
 # get the XLM-R model (1.1 GB, attached to a GitHub release; checksum verified)
-python3 scripts/download_model.py          # private repo: GITHUB_TOKEN=<token> python3 scripts/download_model.py
+python3 scripts/download_model.py
 
 # optional: retrain the baseline (writes model/baseline.joblib)
 .venv/bin/python notebooks/01_baseline.py

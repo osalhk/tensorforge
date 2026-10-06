@@ -2,10 +2,8 @@
 
     python scripts/download_model.py
 
-The model is attached to the GitHub release below. While the repository is private, set a
-GitHub token that can read it:
-
-    GITHUB_TOKEN=<token> python scripts/download_model.py
+The model is attached to the public GitHub release below; no token is needed.
+GITHUB_TOKEN is still used if set (e.g. to avoid API rate limits).
 
 Without the model, the API falls back to the TF-IDF baseline in model/baseline.joblib.
 Standard library only, so it runs before any requirements are installed.
@@ -73,7 +71,7 @@ def main():
                         print(f"  {pct:3d}%  {done / 1e6:.0f} / {total / 1e6:.0f} MB", flush=True)
                         shown = pct
         except urllib.error.HTTPError as e:
-            hint = " The repository is private: set GITHUB_TOKEN." if e.code == 404 and not token else ""
+            hint = " Check the release exists, or set GITHUB_TOKEN." if e.code == 404 and not token else ""
             sys.exit(f"Download failed: HTTP {e.code}.{hint}")
 
         digest = hashlib.sha256()
