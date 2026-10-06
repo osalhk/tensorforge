@@ -236,9 +236,9 @@ def parse_json(body: bytes):
     return json.loads(body.decode("utf-8"))
 
 
-async def read_json(request: Request, limit: int):
+async def read_json(request: Request, limit: int, auth: bool = True):
     """Auth -> 415 -> 413 -> 400. Returns (data, error_response)."""
-    if (err := check_auth(request)) is not None:
+    if auth and (err := check_auth(request)) is not None:
         await discard_body(request)
         return None, err
     media_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
@@ -264,7 +264,7 @@ def model_unavailable():
 
 FRONTEND = ROOT / "frontend"
 if FRONTEND.is_dir():
-    # Public static page; it calls the protected API with a key the visitor types in.
+    # Public static page; it calls the keyless /demo-api routes at the end of this file.
     app.mount("/demo", StaticFiles(directory=FRONTEND, html=True), name="demo")
 
 
@@ -433,3 +433,73 @@ async def job_results(job_id: str, request: Request):
         "model_version": row["model_version"],
         "predictions": page,
     }
+
+
+# ---------------------------------------------------------------- public demo API (not part of the contract)
+#
+# The demo page must work without the visitor knowing the API key, and the key must never reach the
+# browser. These two routes run the same model server-side, with limits so the demo can never get in
+# the way of the official endpoints:
+# - background priority: a live /predict or /predict/batch request always runs first;
+# - never touches the job queue, so it cannot cause a 429 on /batch/jobs;
+# - at most DEMO_BATCH_MAX tickets per call and DEMO_TICKETS_PER_MINUTE per client IP;
+# - disabled when API_KEY is unset (the service never runs open) or when DEMO_PUBLIC=0.
+
+DEMO_BATCH_MAX = 50
+DEMO_LIMIT = 2 * MB
+DEMO_TICKETS_PER_MINUTE = 600
+
+
+class TicketBudget:
+    """Sliding one-minute window of tickets per client. Handlers run on the event loop: no lock needed."""
+
+    def __init__(self, per_minute: int):
+        self.per_minute = per_minute
+        self.used: dict[str, list[tuple[float, int]]] = {}
+
+    def take(self, client: str, n: int) -> bool:
+        now = time.monotonic()
+        for key in list(self.used):
+            self.used[key] = [(t, k) for t, k in self.used[key] if now - t < 60]
+            if not self.used[key]:
+                del self.used[key]
+        window = self.used.setdefault(client, [])
+        if sum(k for _, k in window) + n > self.per_minute:
+            return False
+        window.append((now, n))
+        return True
+
+
+demo_budget = TicketBudget(DEMO_TICKETS_PER_MINUTE)
+
+
+async def demo_predict(request: Request, batch: bool):
+    if not state.api_key or os.environ.get("DEMO_PUBLIC", "1") == "0":
+        return error(404, "not_found", "Route not found.")
+    data, err = await read_json(request, DEMO_LIMIT, auth=False)
+    if err:
+        return err
+    if batch:
+        tickets, details = validate_batch(data, DEMO_BATCH_MAX)
+    else:
+        ticket, details = validate_ticket(data, require_id=False)
+        tickets = [ticket]
+    if details:
+        return validation_error(details)
+    if state.predictor is None:
+        return model_unavailable()
+    if not demo_budget.take(request.client.host if request.client else "?", len(tickets)):
+        return error(429, "too_many_requests", "Demo limit reached. Retry in a minute.",
+                     headers={"Retry-After": "60"})
+    predictions = await run_in_threadpool(state.predictor.predict, tickets, True)
+    return {"predictions": predictions} if batch else predictions[0]
+
+
+@app.post("/demo-api/predict", include_in_schema=False)
+async def demo_predict_one(request: Request):
+    return await demo_predict(request, batch=False)
+
+
+@app.post("/demo-api/predict/batch", include_in_schema=False)
+async def demo_predict_batch(request: Request):
+    return await demo_predict(request, batch=True)

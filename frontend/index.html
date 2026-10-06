@@ -35,14 +35,6 @@
   .status { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); }
   .status i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
   .status.ok i { background: var(--ok); } .status.bad i { background: var(--bad); }
-  .keybtn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 12px;
-            cursor: pointer; font-size: 13px; display: flex; gap: 6px; align-items: center; }
-  .keybtn.set { color: var(--ok); }
-  .keybtn.missing { color: var(--warn); border-color: var(--warn); }
-  .keypop { position: absolute; right: 16px; top: 56px; width: 320px; background: var(--panel); border: 1px solid var(--line);
-            border-radius: 10px; padding: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.15); }
-  .keypop p { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
-  .keypop .rowk { display: flex; gap: 8px; }
 
   /* tabs */
   .tabs { display: flex; gap: 4px; margin: 22px 0 16px; background: var(--soft); padding: 4px; border-radius: 10px; width: fit-content; }
@@ -131,7 +123,6 @@
     .grid2 { grid-template-columns: 1fr; }
     .status span { display: none; }
     .bars .b { grid-template-columns: 110px 1fr 46px; }
-    .keypop { left: 16px; right: 16px; width: auto; }
   }
 </style>
 </head>
@@ -140,14 +131,6 @@
   <div class="wrap bar-top">
     <div class="brand"><span class="logo">R</span>RideEat Ticket Triage</div>
     <div id="status" class="status" title="Model status"><i></i><span>connecting…</span></div>
-    <button id="keyBtn" class="keybtn">🔑 <span>API key</span></button>
-  </div>
-  <div id="keyPop" class="keypop hidden">
-    <p>Paste the team API key. It stays in this browser only.</p>
-    <div class="rowk">
-      <input id="apiKey" type="password" placeholder="tf2_…" autocomplete="off" aria-label="API key">
-      <button id="saveKey" class="btn primary">Save</button>
-    </div>
   </div>
 </header>
 
@@ -182,7 +165,7 @@
     <label id="drop" class="drop card">
       <input id="file" type="file" accept=".csv,.jsonl,.json">
       <div style="font-size:16px;margin-bottom:4px">Drop a <b>CSV / JSONL</b> file or click to choose</div>
-      <div class="muted">Needs <code>channel</code>, <code>subject</code>, <code>text</code>. With <code>category</code> / <code>is_urgent</code> labels you also get accuracy and a confusion matrix. Up to 5,000 tickets.</div>
+      <div class="muted">Needs <code>channel</code>, <code>subject</code>, <code>text</code>. With <code>category</code> / <code>is_urgent</code> labels you also get accuracy and a confusion matrix. Up to 1,000 tickets.</div>
     </label>
     <div id="fileError" class="error hidden"></div>
     <div id="progress" class="progress hidden">
@@ -218,7 +201,7 @@
     </div>
   </div>
 </main>
-<footer class="wrap">TensorForge 2.0 · predictions from the authenticated <code>/predict</code>, <code>/predict/batch</code> and <code>/batch/jobs</code> API</footer>
+<footer class="wrap">TensorForge 2.0 · demo of the RideEat ticket classifier · the API itself (<code>/predict</code>, <code>/predict/batch</code>, <code>/batch/jobs</code>) needs the team API key</footer>
 
 <script>
 "use strict";
@@ -229,25 +212,7 @@ const pretty = (s) => s ? s.replace(/_/g, " ") : "—";
 const CATS = ["payment_refund", "ride_trip_issue", "lost_item", "order_missing_wrong", "delivery_delay", "food_quality",
               "account_promo", "safety_conduct", "app_technical", "general_inquiry", "spam_irrelevant"];
 
-// ---------------------------------------------------------------- key + status
-let apiKey = "";
-try { apiKey = localStorage.getItem("tf_api_key") || ""; } catch (e) {}
-function paintKey() {
-  $("keyBtn").className = "keybtn " + (apiKey ? "set" : "missing");
-  $("keyBtn").lastElementChild.textContent = apiKey ? "Key saved" : "Add API key";
-}
-paintKey();
-$("keyBtn").onclick = () => { $("keyPop").classList.toggle("hidden"); $("apiKey").value = apiKey; $("apiKey").focus(); };
-$("saveKey").onclick = () => {
-  apiKey = $("apiKey").value.trim();
-  try { localStorage.setItem("tf_api_key", apiKey); } catch (e) {}
-  $("keyPop").classList.add("hidden"); paintKey();
-};
-$("apiKey").addEventListener("keydown", (e) => e.key === "Enter" && $("saveKey").click());
-document.addEventListener("click", (e) => {
-  if (!$("keyPop").contains(e.target) && !$("keyBtn").contains(e.target)) $("keyPop").classList.add("hidden");
-});
-
+// ---------------------------------------------------------------- status + API
 async function health() {
   const el = $("status");
   try {
@@ -259,18 +224,13 @@ async function health() {
 }
 health();
 
-async function api(method, path, body) {
-  if (!apiKey) {
-    // Open after the current click finishes, or the outside-click handler closes it again.
-    setTimeout(() => { $("keyPop").classList.remove("hidden"); $("apiKey").focus(); });
-    throw new Error("Add the API key first (top right).");
-  }
-  const headers = { "X-API-Key": apiKey };
-  if (body !== undefined) headers["Content-Type"] = "application/json";
-  const res = await fetch(API + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+// The page never holds the API key: it calls the server's keyless /demo-api routes, which run the
+// same model (see the end of app/main.py).
+async function api(path, body) {
+  const res = await fetch(API + "/demo-api" + path, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   let data = null; try { data = await res.json(); } catch (e) {}
   if (!res.ok) {
-    if (res.status === 401) throw new Error("The API key was rejected. Check it at the top right.");
     const err = data && data.error;
     let msg = err ? err.message : `HTTP ${res.status}`;
     if (err && err.details) msg += " " + err.details.slice(0, 4).map(d => (d.index !== undefined ? `#${d.index} ` : "") + `${d.field}: ${d.issue}`).join("; ");
@@ -302,7 +262,7 @@ async function classify() {
   $("classify").disabled = true;
   const t0 = performance.now();
   try {
-    const p = await api("POST", "/predict", { channel, subject: channel === "email" ? $("subject").value : "", text });
+    const p = await api("/predict", { channel, subject: channel === "email" ? $("subject").value : "", text });
     $("latency").textContent = `${Math.round(performance.now() - t0)} ms`;
     const pct = Math.round(p.confidence * 100);
     $("result").className = "card result";
@@ -352,6 +312,7 @@ const truthy = (v) => v === true || String(v).toLowerCase() === "true";
 
 // ---------------------------------------------------------------- batch run
 let results = [], labelled = false;
+const CHUNK = 50, MAX_FILE = 1000;
 
 async function runFile(file) {
   $("fileError").classList.add("hidden"); $("batch").classList.add("hidden");
@@ -368,24 +329,15 @@ async function runFile(file) {
     originals.push(r);
   });
   if (!tickets.length) return showError("fileError", "No rows with a text column were found.");
-  if (tickets.length > 5000) return showError("fileError", "Up to 5,000 tickets per file.");
+  if (tickets.length > MAX_FILE) return showError("fileError", `Up to ${MAX_FILE.toLocaleString()} tickets per file in the demo.`);
 
   setProgress(0, `Sending ${tickets.length} tickets…`);
   try {
-    let preds;
-    if (tickets.length <= 100) {
-      preds = (await api("POST", "/predict/batch", { tickets })).predictions;
-    } else {
-      const job = await api("POST", "/batch/jobs", { tickets });
-      let st = job;
-      while (!["succeeded", "failed", "cancelled"].includes(st.status)) {
-        setProgress(st.processed / st.total, `Classifying ${st.processed} / ${st.total}`);
-        await new Promise(r => setTimeout(r, 800));
-        st = await api("GET", `/batch/jobs/${job.job_id}`);
-      }
-      if (st.status !== "succeeded") throw new Error(`Job ${st.status}${st.error ? ": " + st.error.message : ""}`);
-      preds = (await api("GET", `/batch/jobs/${job.job_id}/results`)).predictions;
-      api("DELETE", `/batch/jobs/${job.job_id}`).catch(() => {});
+    // Chunks of 50, one after another, so the demo never competes with the official API for long.
+    const preds = [];
+    for (let i = 0; i < tickets.length; i += CHUNK) {
+      setProgress(i / tickets.length, `Classifying ${i} / ${tickets.length}`);
+      preds.push(...(await api("/predict/batch", { tickets: tickets.slice(i, i + CHUNK) })).predictions);
     }
     results = preds.map((p, i) => ({ ...p, text: tickets[i].text,
       true_category: originals[i].category || "", true_urgent: originals[i].is_urgent }));

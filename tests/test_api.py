@@ -323,6 +323,43 @@ def test_demo_unknown_file_is_json_404(client):
     check_error(client.get("/demo/nope.js"), 404)
 
 
+def test_demo_api_needs_no_key_and_matches_predict(client):
+    t = ticket(1)
+    r = client.post("/demo-api/predict", json=t)
+    assert r.status_code == 200, r.text
+    check("predict_response", r.json())
+    assert r.json() == client.post("/predict", json=t, headers=AUTH).json()
+
+    r = client.post("/demo-api/predict/batch", json={"tickets": [ticket(i) for i in range(3)]})
+    assert r.status_code == 200, r.text
+    check("batch_response", r.json())
+    # The official endpoints still need the key.
+    check_error(client.post("/predict", json=t), 401)
+    check_error(client.post("/predict/batch", json={"tickets": [t]}), 401)
+
+
+def test_demo_api_limits(client, monkeypatch):
+    check_error(client.post("/demo-api/predict/batch", json={"tickets": [ticket(i) for i in range(51)]}), 422)
+    check_error(client.post("/demo-api/predict", json=ticket(1, text="")), 422)
+    check_error(client.post("/demo-api/predict", content=b"hi", headers={"Content-Type": "text/plain"}), 415)
+
+    import app.main as main
+    monkeypatch.setattr(main, "demo_budget", main.TicketBudget(per_minute=4))
+    assert client.post("/demo-api/predict/batch", json={"tickets": [ticket(i) for i in range(4)]}).status_code == 200
+    r = client.post("/demo-api/predict", json=ticket(9))
+    check_error(r, 429)
+    assert r.headers["retry-after"]
+
+
+def test_demo_api_off_without_api_key(client, monkeypatch):
+    import app.main as main
+    monkeypatch.setattr(main.state, "api_key", "")
+    check_error(client.post("/demo-api/predict", json=ticket(1)), 404)
+    monkeypatch.undo()
+    monkeypatch.setenv("DEMO_PUBLIC", "0")
+    check_error(client.post("/demo-api/predict", json=ticket(1)), 404)
+
+
 # ---------------------------------------------------------------- XLM-R model (skipped if not downloaded)
 
 XLMR = ROOT / "model" / "xlmr"
