@@ -1,0 +1,23 @@
+model,category,team,precision,recall,f1,support
+xlmr,payment_refund,Payments & Refunds,0.9174,0.7708,0.8377,144
+xlmr,ride_trip_issue,Ride Operations,0.9626,0.9196,0.9406,112
+xlmr,lost_item,Lost & Found,1.0,0.7,0.8235,40
+xlmr,order_missing_wrong,Food Operations,0.75,0.9062,0.8208,96
+xlmr,delivery_delay,Delivery Operations,0.845,0.9083,0.8755,120
+xlmr,food_quality,Restaurant Quality,0.94,0.8393,0.8868,56
+xlmr,account_promo,Account Services,0.9851,0.9167,0.9496,72
+xlmr,safety_conduct,Trust & Safety,0.9677,0.9375,0.9524,32
+xlmr,app_technical,Tech Support,0.7586,0.6875,0.7213,64
+xlmr,general_inquiry,Front-line Support,0.5135,0.95,0.6667,40
+xlmr,spam_irrelevant,Auto-close / Spam Filter,1.0,0.7917,0.8837,24
+baseline,payment_refund,Payments & Refunds,0.4915,0.6042,0.5421,144
+baseline,ride_trip_issue,Ride Operations,0.7545,0.7411,0.7477,112
+baseline,lost_item,Lost & Found,0.4655,0.675,0.551,40
+baseline,order_missing_wrong,Food Operations,0.4085,0.3021,0.3473,96
+baseline,delivery_delay,Delivery Operations,0.5616,0.6833,0.6165,120
+baseline,food_quality,Restaurant Quality,0.7188,0.4107,0.5227,56
+baseline,account_promo,Account Services,0.8333,0.625,0.7143,72
+baseline,safety_conduct,Trust & Safety,0.7143,0.625,0.6667,32
+baseline,app_technical,Tech Support,0.8,0.5,0.6154,64
+baseline,general_inquiry,Front-line Support,0.5167,0.775,0.62,40
+baseline,spam_irrelevant,Auto-close / Spam Filter,1.0,1.0,1.0,24

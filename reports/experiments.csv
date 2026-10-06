@@ -1,0 +1,28 @@
+experiment,model,features,params,cv5_category_acc,val_category_acc,val_category_macro_f1,val_secondary_macro_f1,val_urgent_f1,val_all_three,notes
+E01,tfidf,word 1-2,"LR C=10, no class weights",0.9828 ± 0.0033,0.5275,0.5662,,,,words only
+E02,tfidf,char 2-5,"LR C=10, no class weights",0.9797 ± 0.0044,0.63,0.6493,,,,character n-grams handle spelling variation and Sinhala/Tamil script
+E03,tfidf,char 2-5 + word 1-2,"LR C=10, no class weights",0.9850 ± 0.0033,0.6038,0.6361,,,,both feature sets
+E04,tfidf,char 2-5 + word 1-2,"LR C=10, balanced",0.9865 ± 0.0025,0.6038,0.6312,,,,"class weights for rare classes (safety, spam); chosen baseline"
+E05,tfidf,char 2-5 + word 1-2,"LR C=1, balanced",0.9800 ± 0.0055,0.5763,0.5988,,,,stronger regularisation
+E06,tfidf,char 2-5 + word 1-2,"LR C=30, balanced",0.9878 ± 0.0024,0.605,0.6332,,,,weaker regularisation
+E07,tfidf,char 2-5 + word 1-2,"LinearSVC C=0.5, balanced",0.9902 ± 0.0018,0.6462,0.6697,,,,"linear SVM instead of LR (no probabilities, so no calibrated confidence)"
+E08,tfidf,char 2-5 + word 1-2 (text only),"LR C=10, balanced",0.9808 ± 0.0038,0.5988,0.6265,,,,drops channel and subject: shows they help
+B1,tfidf 3 heads (served fallback),char 2-5 + word 1-2,"LR C=10 balanced x3, urgent threshold 0.35 (5-fold CV)",,0.6038,0.6312,0.6682,0.8415,0.5637,category + secondary + urgent with API consistency rules
+X-s42-e1,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 42, epoch 1, LR 2e-5, class weights",,0.6338,0.5597,0.248,0.6963,0.5637,"per-epoch validation, from Colab history.json"
+X-s42-e2,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 42, epoch 2, LR 2e-5, class weights",,0.7775,0.7839,0.7694,0.8516,0.7375,"per-epoch validation, from Colab history.json"
+X-s42-e3,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 42, epoch 3, LR 2e-5, class weights",,0.76,0.7712,0.7336,0.9487,0.73,"per-epoch validation, from Colab history.json"
+X-s42-e4,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 42, epoch 4, LR 2e-5, class weights",,0.8337,0.8341,0.8425,0.9625,0.82,"per-epoch validation, from Colab history.json"
+X-s42-e5,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 42, epoch 5, LR 2e-5, class weights",,0.85,0.8456,0.8651,0.9811,0.8337,"per-epoch validation, from Colab history.json"
+X-s42-e6,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 42, epoch 6, LR 2e-5, class weights",,0.8525,0.8508,0.8773,0.9693,0.8337,"per-epoch validation, from Colab history.json"
+X-s42-e7,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 42, epoch 7, LR 2e-5, class weights",,0.8462,0.839,0.8346,0.9809,0.8263,"per-epoch validation, from Colab history.json"
+X-s42-e8,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 42, epoch 8, LR 2e-5, class weights",,0.8538,0.8478,0.8564,0.9811,0.835,"per-epoch validation, from Colab history.json"
+X-s1337-e1,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 1337, epoch 1, LR 2e-5, class weights",,0.5863,0.6019,0.433,0.8125,0.5225,"per-epoch validation, from Colab history.json"
+X-s1337-e2,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 1337, epoch 2, LR 2e-5, class weights",,0.805,0.7898,0.8159,0.881,0.7788,"per-epoch validation, from Colab history.json"
+X-s1337-e3,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 1337, epoch 3, LR 2e-5, class weights",,0.8213,0.8006,0.8954,0.9682,0.8125,"per-epoch validation, from Colab history.json"
+X-s1337-e4,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 1337, epoch 4, LR 2e-5, class weights",,0.8263,0.8182,0.95,0.939,0.8237,"per-epoch validation, from Colab history.json"
+X-s1337-e5,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 1337, epoch 5, LR 2e-5, class weights",,0.8363,0.824,0.9386,0.95,0.8325,"per-epoch validation, from Colab history.json"
+X-s1337-e6,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 1337, epoch 6, LR 2e-5, class weights",,0.855,0.8388,0.9267,0.9455,0.8525,"per-epoch validation, from Colab history.json"
+X-s1337-e7,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 1337, epoch 7, LR 2e-5, class weights",,0.8525,0.8339,0.9344,0.9682,0.8488,"per-epoch validation, from Colab history.json"
+X-s1337-e8,"xlm-roberta-base, 3 heads","channel | subject + text, max 256 tokens","seed 1337, epoch 8, LR 2e-5, class weights",,0.8575,0.8401,0.931,0.9682,0.8512,"per-epoch validation, from Colab history.json"
+X-int8,xlm-roberta-base int8 ONNX,same,dynamic int8 quantisation (several settings),,0.734-0.746,,,,,earlier run; fp32 of the same run 0.775. Rejected: -3 to -4 points (notebook section 9)
+FINAL,xlm-roberta-base fp32 ONNX (served),same,"seed 42, best epoch 6, urgent threshold 0.45",,0.8525,0.8508,0.8773,0.9693,0.8337,model_version xlmr-5e87460a8fb6; epoch and threshold picked on validation

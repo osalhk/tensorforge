@@ -3,3 +3,4 @@ pandas
 pytest
 httpx
 jsonschema
+matplotlib
