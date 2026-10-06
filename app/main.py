@@ -191,14 +191,42 @@ class BodyTooLarge(Exception):
     pass
 
 
+DRAIN_CAP = 64 * MB
+
+
+async def discard_body(request: Request, size: int = 0):
+    """Read and drop the rest of an unread body before an early error response.
+
+    Otherwise the server closes the connection while the client is still uploading and the client
+    sees a connection reset instead of our 401/413/415. Gives up past DRAIN_CAP.
+    """
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > DRAIN_CAP:
+        return
+    while size <= DRAIN_CAP:
+        message = await request.receive()
+        if message["type"] != "http.request":
+            return
+        size += len(message.get("body", b""))
+        if not message.get("more_body", False):
+            return
+
+
 async def read_body(request: Request, limit: int) -> bytes:
     declared = request.headers.get("content-length", "")
     if declared.isdigit() and int(declared) > limit:
+        await discard_body(request)
         raise BodyTooLarge
-    chunks, size = [], 0
-    async for chunk in request.stream():
+    chunks, size, more = [], 0, True
+    while more:
+        message = await request.receive()
+        if message["type"] != "http.request":  # client disconnected
+            break
+        chunk, more = message.get("body", b""), message.get("more_body", False)
         size += len(chunk)
         if size > limit:
+            if more:
+                await discard_body(request, size)
             raise BodyTooLarge
         chunks.append(chunk)
     return b"".join(chunks)
@@ -211,9 +239,11 @@ def parse_json(body: bytes):
 async def read_json(request: Request, limit: int):
     """Auth -> 415 -> 413 -> 400. Returns (data, error_response)."""
     if (err := check_auth(request)) is not None:
+        await discard_body(request)
         return None, err
     media_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
     if media_type != "application/json":
+        await discard_body(request)
         return None, error(415, "unsupported_media_type", "Content-Type must be application/json.")
     try:
         body = await read_body(request, limit)
