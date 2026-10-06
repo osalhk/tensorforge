@@ -10,6 +10,9 @@ The model is trained by us (no LLM API calls for classification) and served thro
 
 **Deadline:** 10 October 2026, 6:00 PM
 
+**Hosted API:** https://13-232-241-157.sslip.io (demo: https://13-232-241-157.sslip.io/demo/)
+— AWS EC2, Caddy terminates TLS (Let's Encrypt) and forwards to the API container.
+
 ## Results (validation set, 800 tickets)
 
 | Model | Category accuracy | Category macro-F1 | Secondary macro-F1 | Urgent F1 | All three correct |
