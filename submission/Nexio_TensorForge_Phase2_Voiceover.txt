@@ -1,0 +1,123 @@
+TensorForge 2.0 Phase 2 - AI voiceover narration (Team Nexio)
+Generate each clip separately and paste only the text between the lines.
+
+===== CLIP 01 - Introduction (~0:59) =====
+
+Hello. We are Team Nexio, from the University of Moratuwa. This is our TensorForge two point oh, Phase Two submission.
+
+We built a system that reads a Ride Eat customer support ticket and sends it to the right team. It works in English, Sinhala, Tamil, Singlish and Tanglish.
+
+For every ticket, we predict three things. The main category. A secondary issue, if there is one. And whether the ticket is urgent. The team is not predicted. It comes from a fixed table in the specification, so we simply apply that table.
+
+Our own fine-tuned model reaches eighty-five point three percent category accuracy on the validation set. Our baseline reached sixty point four percent. No large language model is called anywhere in the system.
+
+In this video, we cover the data, how we trained and improved the model, the results, the architecture, a live demo, and how we tested everything.
+
+===== CLIP 02 - The data (~1:14) =====
+
+The organisers gave us four thousand training tickets and eight hundred validation tickets, with no missing values and no duplicates.
+
+The eleven categories are imbalanced. Payment refunds have seven hundred and twenty tickets. Spam has only one hundred and twenty. That is a six-fold gap, so we used class weights in every model.
+
+The language mix is the real challenge. Thirty-five percent English, twenty-five percent Singlish, twenty percent Sinhala script, fifteen percent Tamil, and the rest Tanglish and mixed text. The data has a language column, but the A P I never receives it. So the model must work without being told the language.
+
+Only ten percent of tickets are urgent. But seventy-five percent of safety tickets are urgent. About ten percent of tickets also carry a secondary issue, such as a refund request inside a late delivery complaint.
+
+One finding changed how we evaluated. The training set contains close paraphrases. For a training ticket, the most similar other training ticket has the same category eighty-two percent of the time. For a validation ticket, it is only thirty-one percent. Remember this. It matters in a moment.
+
+===== CLIP 03 - Baseline and experiments (~0:52) =====
+
+We started with a classical baseline. T F I D F features on characters and words, and logistic regression with class weights, with one model for each output. It scored sixty point four percent on validation.
+
+Then we logged every experiment in one file, experiments dot C S V. Every run can be reproduced from our experiments script, with a fixed random seed. We compared word features against character features, class weights, different regularisation strengths, a linear support vector machine, and removing the channel and subject fields.
+
+Character N grams beat word N grams, sixty-three percent against fifty-three percent, because Singlish and Tanglish spelling varies so much. The best classical model was the linear support vector machine, at sixty-four point six percent. After that, the classical models hit a ceiling.
+
+===== CLIP 04 - The cross-validation trap (~0:32) =====
+
+Here is the trap we found. With five-fold cross-validation on the training set, all of these models scored about ninety-eight percent. On the validation set, they scored between fifty-three and sixty-five percent.
+
+That is the paraphrase effect. Random folds put near copies of a ticket on both sides of the split, so the model only has to recognise them. Cross-validation was measuring memory, not understanding. So from that point on, we compared every model on the held-out validation set only.
+
+===== CLIP 05 - Fine-tuning the transformer (~1:16) =====
+
+To get past the ceiling, we fine-tuned X L M Roberta base. It is a multilingual encoder, pretrained on one hundred languages, including Sinhala and Tamil.
+
+We use one shared encoder with three small output heads. One for the category, one for the secondary issue, and one for urgency. All three are trained together. The loss is the category loss, plus half the secondary loss, plus half the urgency loss, with class weights for the rare classes.
+
+We used the Adam W optimiser with a learning rate of two times ten to the minus five, a batch size of sixteen, and eight epochs. A higher learning rate, three times ten to the minus five, was unstable. Two identical runs gave eighty-three percent and seventy-eight percent.
+
+This chart shows validation accuracy after every epoch, for two random seeds. Both reach about eighty-five percent by epoch five or six, and then flatten out. The checkpoint was chosen automatically, by a score led by category macro F one, with urgency and secondary scores as tie-breakers. That picked seed forty-two, at epoch six. We then tuned the urgency threshold to zero point four five.
+
+===== CLIP 06 - Serving and calibration (~0:48) =====
+
+For serving, we export the model to Onyx, so the server needs no PyTorch and no graphics card. We also tried eight-bit integer compression. It cost three to four points of accuracy, so we kept full precision. Accuracy is scored. Speed is not.
+
+The last improvement was calibration. The raw model was over-confident. Its average confidence was ninety-six percent, but it was right only eighty-five percent of the time. The specification scores confidence, so we fitted a single temperature value, one point seven five. Now, when the model says eighty percent, it is right about eighty percent of the time. Expected calibration error dropped from zero point one zero six to zero point zero two five, and not a single prediction changed.
+
+===== CLIP 07 - Evaluation results (~0:34) =====
+
+Here are the final results on the eight hundred validation tickets. They are computed through the same code that the A P I uses.
+
+Category accuracy is eighty-five point three percent, against sixty point four for the baseline. Category macro F one is zero point eight five. For urgency, the F one score is zero point nine seven, and we catch ninety-eight point eight percent of urgent tickets. And all three outputs are correct on eighty-three percent of tickets, against fifty-six percent for the baseline.
+
+===== CLIP 08 - Where it goes wrong (~0:58) =====
+
+The confusion matrix shows where the model still goes wrong. The biggest error is vague refund requests being sent to general inquiry. That happened twenty-five times out of one hundred and forty-four. Some app problems are also read as delivery delays. Safety tickets, the most important ones, are thirty out of thirty-two correct.
+
+By language, the model is strong in native scripts. Sinhala is eighty-six percent, Tamil eighty-eight, and English eighty-eight. Singlish is the weakest, at seventy-nine percent. Interestingly, it is the only language where the simple baseline does better. That is our clearest next step.
+
+And the confidence is honest. The calibration curve follows the diagonal. Tickets below fifty percent confidence are flagged for human review. That is about five percent of tickets, and only nineteen percent of those would have been correct. The rest are routed automatically, and eighty-nine percent of those are correct.
+
+===== CLIP 09 - Architecture (~1:10) =====
+
+Now the system itself. Requests arrive over H T T P S at Caddy, a web server running on an A W S E C two instance. Caddy forwards them to our Docker container. Inside, a Fast A P I service checks every request in the exact order the specification requires. First the A P I key, then the content type, then the size, then the Jason body, then field validation. Only after all of that does the request reach the model.
+
+The key is read only from an environment variable, never written in the code, and it is compared in constant time. Both the X A P I Key header and a Bearer token are accepted. If no key is configured, every protected endpoint returns four oh one. The service never runs open.
+
+After the model, we apply fixed rules. The team comes from the specification's table. The secondary category must differ from the main one. And spam is never urgent. We apply these rules instead of learning them, so they can never be wrong.
+
+===== CLIP 10 - Endpoints, jobs and errors (~0:50) =====
+
+All seven operations from the contract are implemented. A public health check. Single prediction. Batch prediction for up to one hundred tickets. And asynchronous jobs for up to five thousand tickets, where you submit a job, check its status, page through the results, and delete it.
+
+Job state is stored in S Q Lite, so status checks are reliable. If the container restarts in the middle of a job, the job ends as failed, with the code interrupted. It is never silently lost. Live prediction requests always run before job work, so the A P I stays fast even during a large job.
+
+Every error uses the error format from the specification, including unknown routes, wrong methods and broken Jason. Bad input never causes a server error.
+
+===== CLIP 11 - Live demo (~1:26) =====
+
+This is the live demo. First, a Singlish chat message. The customer says the order is an hour late, the driver is not answering, and they want a refund. The model classifies it as a delivery delay, routes it to Delivery Operations, and marks it as not urgent, with ninety-two percent confidence.
+
+Next, a phone call transcript. The customer says the driver took a wrong turn and will not stop the car. The model classifies it as safety and conduct, routes it to Trust and Safety, and flags it as urgent, with ninety-seven percent confidence.
+
+Native scripts work too, with no translation step. This Tamil message says the food arrived cold, the package was crushed, and the customer wants their money back. The model predicts food quality as the main category, with a secondary issue of payment refund. Both are correct.
+
+For bulk work, you can upload a C S V file. When the file includes labels, the page shows accuracy, how many urgent tickets were caught, accuracy for each category, and a confusion matrix.
+
+The demo page never holds our A P I key. It calls separate demo routes on the server. These run the same model, are rate limited, and run at low priority, so visitors can never slow down the judges' requests.
+
+===== CLIP 12 - The protected API (~0:14) =====
+
+The real A P I is protected. A request without a key gets four oh one, in the error format from the specification. With the key, we get a full prediction, with every field the schema requires.
+
+===== CLIP 13 - Docker, offline (~0:37) =====
+
+The model is copied into the Docker image when it is built, so nothing is downloaded at run time. The image uses a slim Python base, runs as a non-root user, and has a built-in health check.
+
+Here, the container runs with networking switched off completely, and with the reference limits of two C P Us and four gigabytes of memory. The model loads in a few seconds, and the service is healthy in under ten seconds, well inside the one hundred and twenty seconds allowed. It uses less than two gigabytes of memory.
+
+===== CLIP 14 - Testing (~0:38) =====
+
+We have sixty-four automated tests. They check every response, including every error, against the official Jason schemas. They cover authentication on every endpoint, edge cases, batch ordering, the full job life cycle, and even a restart in the middle of a job.
+
+Our smoke test runs two hundred and fifty-two checks against the live server, including a real asynchronous job on validation tickets. All two hundred and fifty-two pass. It also caught a real bug before submission. Oversized uploads got a dropped connection, instead of a clean four thirteen error. We fixed it and redeployed.
+
+===== CLIP 15 - Findings and close (~1:01) =====
+
+We learned three lessons. First, a fine-tuned multilingual encoder was the decisive step. It beat every classical model by more than twenty points. Second, measure honestly. Random cross-validation said ninety-eight percent. Held-out validation said sixty. Third, calibration is cheap, and it matters. One number made the confidence trustworthy.
+
+Now our limitations. Singlish is the weakest language. Vague refund requests are sometimes mistaken for general questions. And we chose the checkpoint and the urgency threshold on the validation set, so the hidden test score may be a little lower. Next, we would retrain on the training and validation data together, and add a character-level model for Singlish.
+
+Everything is reproducible from our repository. The data analysis, every experiment, the training notebook, the evaluation, and the tests. The A P I is live over H T T P S, and the demo is open to try. From all of Team Nexio, thank you for watching.
+
